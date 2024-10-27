@@ -7,45 +7,70 @@ import (
 	"strconv"
 )
 
-func isPrime(num int64) bool {
+func isPrimeCon(num int64, c chan int64) {
 	if num <= 1 {
-		return false
+		return
 	}
+
 	var i int64
 	for i = 2; i*i <= num; i++ {
 		if num%i == 0 {
-			return false
+			return
 		}
 	}
-	return true
+	c <- num
 }
 
-func calculatePrimes(n int64) []int64 {
-	var primes []int64
+func calculatePrimes(n int64, primesC chan int64) {
 	var i int64
 
 	for i = 2; i < n; i++ {
-		if isPrime(i) {
-			primes = append(primes, i)
-		}
+		go isPrimeCon(i, primesC)
 	}
-	return primes
+
+	primesC <- -1
+}
+
+func perfectCon(n int64, c chan int64) {
+	inner := math.Pow(2, float64(n)) - 1
+	channel := make(chan int64)
+
+	isPrimeCon(int64(inner), channel)
+	channel <- -1
+	prime, ok := <-channel
+	if !ok || prime == -1 {
+		return
+	}
+	potentialPerfect := int64(math.Pow(2, float64(prime)-1) * inner)
+	if potentialPerfect <= n {
+		c <- potentialPerfect
+	}
 }
 
 func perfect(n int64) []int64 {
-	primes := calculatePrimes(n)
-	var perfects []int64
-	for _, prime := range primes {
-		inner := math.Pow(2, float64(prime)) - 1
-		if isPrime(int64(inner)) {
-			potentialPerfect := int64(math.Pow(2, float64(prime)-1) * inner)
-			if potentialPerfect <= n {
-				perfects = append(perfects, potentialPerfect)
-			}
+	primesC := make(chan int64, n)
+	perfectC := make(chan int64, n)
 
+	calculatePrimes(n, primesC)
+
+	for {
+		prime, ok := <-primesC
+		if !ok || prime == -1 {
+			break
 		}
-	}
+		go perfectCon(prime, perfectC)
 
+	}
+	perfectC <- -1
+
+	var perfects []int64
+	for {
+		perf, ok := <-perfectC
+		if !ok || perf == -1 {
+			break
+		}
+		perfects = append(perfects, perf)
+	}
 	return perfects
 }
 
